@@ -12,19 +12,19 @@ Demonstrate how GCS Fuse can use a custom binary to fetch authentication tokens,
 In this part, you will show the audience the files we have prepared.
 
 ### 1. The Token Fetcher Go Source
-Show the file [fetch_token.go](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/fetch_token.go).
+Show the file [fetch_token.go](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/base_demo/cmd/fetch_token/fetch_token.go).
 *   **What to highlight**: Point out that it uses mTLS to connect to the internal token service (`https://10.128.0.2:5000/mint-cat`) and returns a SAML token in the format expected by Google Workload Identity Federation.
 
 ### 2. The Compiled Binary
-Show that we have compiled this file into a statically linked binary named `fetch-token` in `poc/option1/`.
+Show that we have compiled this file into a statically linked binary named `fetch-token` in `poc/option1/base_demo/`.
 *   **What to highlight**: Explain that it must be statically linked because the GCS Fuse sidecar image is distroless and lacks shared libraries or a package manager.
 
 ### 3. The Credential Configuration
-Show the file [credential-configuration.json](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/credential-configuration.json).
+Show the file [credential-configuration.json](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/base_demo/credential-configuration.json).
 *   **What to highlight**: Show the `credential_source` section where it specifies `executable` and points to `/scripts/fetch-token`. This tells the Google Auth library to run our binary to get the token.
 
 ### 4. The Deployment Manifest
-Show the file [deployment.yaml](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/deployment.yaml).
+Show the file [deployment.yaml](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/base_demo/deployment.yaml).
 *   **What to highlight**:
     *   The annotations that trigger the CSI driver webhook to inject the GCS Fuse sidecar and mount additional volumes.
     *   The `initContainers` section that copies the binary from the custom image to a shared volume.
@@ -40,7 +40,7 @@ Show the file [deployment.yaml](file:///usr/local/google/home/yangspirit/Work/gc
 We need to store the `credential-configuration.json` in a ConfigMap so the CSI driver can mount it.
 
 ```bash
-kubectl create configmap custom-auth-config --from-file=credential-configuration.json=poc/option1/credential-configuration.json
+kubectl create configmap custom-auth-config --from-file=credential-configuration.json=poc/option1/base_demo/credential-configuration.json
 ```
 
 ### Step 2: Package and Push the Binary
@@ -50,7 +50,7 @@ The user needs to create a container image containing the `fetch-token` binary a
 Apply the deployment manifest.
 
 ```bash
-kubectl apply -f poc/option1/deployment.yaml
+kubectl apply -f poc/option1/base_demo/deployment.yaml
 ```
 
 ### Step 4: Verify Sidecar Injection
@@ -109,23 +109,23 @@ This solution preserves native audit lineage and unblocks the V0 deployment whil
 
 If you want to run a self-contained demo without access to the actual services, use the following assets we have prepared:
 
-1.  **Mock Service**: [mock_service.go](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/mock_service.go) (and compiled `mock-service`). Now includes `/sts-token` endpoint to simulate Google STS.
-2.  **Mock Service Manifest**: [mock-service-deployment.yaml](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/mock-service-deployment.yaml) runs the mock service as a separate Deployment and Service.
-3.  **Credential Configuration**: [mock-credential-configuration.json](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/mock-credential-configuration.json) points directly to the binary `/scripts/fetch-token`.
-4.  **Demo Deployment**: [demo-deployment.yaml](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/demo-deployment.yaml) copies the binary in the `initContainer` and uses `gke-gcsfuse/inject-after: "copy-token-binary"` annotation to ensure correct execution order.
+1.  **Mock Service**: [mock_service.go](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/base_demo/cmd/mock_service/mock_service.go) (and compiled `mock-service`). Now includes `/sts-token` endpoint to simulate Google STS.
+2.  **Mock Service Manifest**: [mock-service-deployment.yaml](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/base_demo/mock-service-deployment.yaml) runs the mock service as a separate Deployment and Service.
+3.  **Credential Configuration**: [mock-credential-configuration.json](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/base_demo/mock-credential-configuration.json) points directly to the binary `/scripts/fetch-token`.
+4.  **Demo Deployment**: [demo-deployment.yaml](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/base_demo/demo-deployment.yaml) copies the binary in the `initContainer` and uses `gke-gcsfuse/inject-after: "copy-token-binary"` annotation to ensure correct execution order.
 
 ### Steps for Mock Demo:
 1.  **Deploy the Mock Service**:
     ```bash
-    kubectl apply -f poc/option1/mock-service-deployment.yaml
+    kubectl apply -f poc/option1/base_demo/mock-service-deployment.yaml
     ```
 2.  **Create the ConfigMap**:
     ```bash
-    kubectl create configmap mock-auth-config --from-file=credential-configuration.json=poc/option1/mock-credential-configuration.json -n default --dry-run=client -o yaml | kubectl apply -f -
+    kubectl create configmap mock-auth-config --from-file=credential-configuration.json=poc/option1/base_demo/mock-credential-configuration.json -n default --dry-run=client -o yaml | kubectl apply -f -
     ```
 3.  **Apply the Demo Deployment**:
     ```bash
-    kubectl apply -f poc/option1/demo-deployment.yaml
+    kubectl apply -f poc/option1/base_demo/demo-deployment.yaml
     ```
 4.  **Verify**:
     *   Check mock service logs to see token requests: `kubectl logs -l app=mock-token-service`
@@ -141,20 +141,20 @@ If the user prefers not to package their binary in a container image and instead
 ### Key Differences:
 - No `initContainers` needed.
 - Uses `hostPath` volume instead of `emptyDir`.
-- Requires the binary to be statically linked by default because it executes inside the distroless sidecar container. If a dynamically linked binary must be used, the required shared libraries must also be mounted from the host, or a custom sidecar image containing those libraries must be used.
+- Requires the binary to be **fully statically linked (ideally using the `musl` target)** because it executes inside the distroless sidecar container. Standard static builds on Linux still depend on `glibc` and may fail in distroless environments. If a dynamically linked binary must be used, the required shared libraries must also be mounted from the host, or a custom sidecar image containing those libraries must be used.
 
 ### Manifest:
-Show [hostpath-deployment.yaml](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/hostpath-deployment.yaml).
+Show [hostpath-deployment.yaml](file:///usr/local/google/home/yangspirit/Work/gcs-fuse-csi-driver/poc/option1/base_demo/hostpath-deployment.yaml).
 
 ### Steps for HostPath Demo:
 1.  **Install the binary on host nodes** (Simulation):
     Apply the helper DaemonSet to copy the binary from our image to the host path:
     ```bash
-    kubectl apply -f poc/option1/install-hostpath-binary.yaml
+    kubectl apply -f poc/option1/base_demo/install-hostpath-binary.yaml
     ```
 2.  **Apply the HostPath Demo Deployment**:
     ```bash
-    kubectl apply -f poc/option1/hostpath-deployment.yaml
+    kubectl apply -f poc/option1/base_demo/hostpath-deployment.yaml
     ```
 3.  **Verify**:
     Check sidecar logs to see GCS authentication attempt:
@@ -266,4 +266,81 @@ To run this solution, the customer is responsible for creating the identity and 
 *   **Least Privilege via ABAC**: By granting permissions based on specific attributes (like `pod_prefix`), access is restricted to only what is necessary for that specific workload, preventing broad, unauthorized access even within the same pool.
 *   **Hard Isolation**: Segregating resources into different identity pools ensures that a compromise in one pool does not grant access to resources in another.
 *   **Full Audit Traceability**: The unique subject identifier from the SAML token is recorded in Google Cloud audit logs for every operation. This ensures that even with dynamic token fetching and attribute-based access control, there is a clear audit trail linking actions to specific workloads.
+
+---
+
+## Part 7: C++ Dependency POC (Static Linking Solution)
+
+This section describes how to run the demo showing that static linking solves the issue of missing C++ libraries in the distroless GCS Fuse sidecar.
+
+### Goal
+Prove that a binary statically linked against its custom C++ dependencies can run successfully in the distroless environment.
+
+### Key to Success: Pure Static Linking with `musl`
+> [!NOTE]
+> By default, a static build on Linux still depends on `glibc`. To run successfully in the distroless sidecar (which may lack the glibc dynamic linker), we used the **`musl` target** in Rust (`x86_64-unknown-linux-musl`) to produce a truly zero-dependency binary.
+
+### How it is Linked
+To simulate the customer's C++ crypto library, we:
+1.  Compiled `mock_crypto.cpp` into an object file.
+2.  Archived it into a static library `libmockcrypto.a`.
+3.  Linked it into the Rust binary using the `-l static=mockcrypto` flag.
+
+This is the command executed in the builder environment:
+```bash
+g++ -c -fPIC mock_crypto.cpp -o mock_crypto.o
+ar rcs libmockcrypto.a mock_crypto.o
+rustc -L . -l static=mockcrypto -l stdc++ main.rs -o mock-client-static
+```
+*(Note: In the Init Container flow, this happens inside the cluster; in the HostPath flow, this happens in a local Docker container).*
+
+### Assets Prepared in `cpp_poc/`:
+1.  **Source Code**: `mock_crypto.cpp` (C++ library) and `main.rs` (Rust client).
+2.  **Manifests**: `demo-cpp-initcontainer.yaml` and `demo-cpp-hostpath.yaml`.
+3.  **Config**: `cpp-credential-configuration.json` and `cpp-source-config.yaml`.
+4.  **Automation Scripts**: `run_cpp_initcontainer_demo.sh` and `run_cpp_full_hostpath_demo.sh`.
+
+### Steps to Run the Demo:
+
+#### Option A: Using Init Container (In-Cluster Compilation)
+This option is self-contained and does not require local build tools or pushing images to a registry.
+1.  **Navigate to directory**:
+    ```bash
+    cd poc/option1/cpp_poc
+    ```
+2.  **Run the script**:
+    ```bash
+    ./run_cpp_initcontainer_demo.sh
+    ```
+3.  **How it works**:
+    *   The script creates a ConfigMap (`cpp-source-config`) containing the source files.
+    *   It applies `demo-cpp-initcontainer.yaml`.
+    *   The injected init container (using `rust:alpine` image) fetches the source files and **compiles them directly inside the cluster**, outputting the static binary to the shared volume.
+4.  **Verify**:
+    *   The script will automatically check logs. Expect to see:
+        ```
+        credentials: unable to parse "response": Rust wrapper starting...
+        MOCK CRYPTO: Encrypting using C++ standard library (cout)...
+        Rust wrapper finished.
+        ```
+        *Note: The "unable to parse response" error is expected because our mock binary does not return valid token JSON. The success is that it executed without library errors.*
+
+#### Option B: Using HostPath (Full Image Build)
+This option simulates the production flow where you build the binary locally, package it in an image, and distribute it via DaemonSet.
+1.  **Prerequisite**: Ensure you are authenticated to your container registry (e.g., `gcloud auth configure-docker`).
+2.  **Navigate to directory**:
+    ```bash
+    cd poc/option1/cpp_poc
+    ```
+3.  **Run the full script**:
+    ```bash
+    ./run_cpp_full_hostpath_demo.sh
+    ```
+4.  **How it works**:
+    *   The script runs `make static` locally (using `musl` target) to build the binary.
+    *   It builds a Docker image and pushes it to the registry.
+    *   It deploys a DaemonSet to copy the binary from the image to `/var/lib/custom/bin` on all nodes.
+    *   It deploys the workload Pod, which mounts that host path.
+5.  **Verify**:
+    *   Expect the same successful execution output as in Option A.
 
