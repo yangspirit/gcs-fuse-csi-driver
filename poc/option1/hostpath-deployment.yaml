@@ -28,7 +28,7 @@ spec:
       - name: binary-volume
         hostPath:
           path: /var/lib/custom/bin # Example path where the binary is dropped
-          type: Directory
+          type: DirectoryOrCreate
       - name: demo-bucket-vol
         csi:
           driver: gcsfuse.csi.storage.gke.io
